@@ -14,8 +14,8 @@ opencode_plugin.ts. Also the recall CLI the agent invokes:
 
 Configuration (environment of the process that started the agent):
   TOOL_LOG_PRUNE=1     enable; anything else = pass-through
-  TOOL_LOG_HEAD=1000   tokens kept from the start
-  TOOL_LOG_TAIL=1000   tokens kept from the end
+  TOOL_LOG_HEAD=500    tokens kept from the start
+  TOOL_LOG_TAIL=500    tokens kept from the end
 A result is pruned when it is longer than head + tail. Tokens are estimated as characters / 4.
 """
 import json
@@ -37,8 +37,8 @@ def _int_from_env(variable_name, default_value):
         return default_value
 
 
-HEAD_TOKENS = _int_from_env("TOOL_LOG_HEAD", 1000)
-TAIL_TOKENS = _int_from_env("TOOL_LOG_TAIL", 1000)
+HEAD_TOKENS = _int_from_env("TOOL_LOG_HEAD", 500)
+TAIL_TOKENS = _int_from_env("TOOL_LOG_TAIL", 500)
 
 
 def enabled():

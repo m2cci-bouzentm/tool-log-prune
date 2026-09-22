@@ -1,6 +1,6 @@
 # tool-log-prune
 
-Keep large tool results out of the model context. Archive them in full, keyed by tool call id, and show the model only the first and last 1000 tokens plus a footer that says exactly how to fetch the rest.
+Keep large tool results out of the model context. Archive them in full, keyed by tool call id, and show the model only the first and last 500 tokens plus a footer that says exactly how to fetch the rest.
 
 Works for Claude Code, Codex and OpenCode from one shared implementation. Off by default. Active only when the agent is started with `TOOL_LOG_PRUNE=1` in its environment: `TOOL_LOG_PRUNE=1 claude`.
 
@@ -18,16 +18,16 @@ No classifier, no LLM call. Deterministic head + tail.
 
 ```
 tool runs → result → hook
-                      ├─ fits in head + tail (≤ 2000 tokens): pass through untouched
+                      ├─ fits in head + tail (≤ 1000 tokens): pass through untouched
                       └─ longer: full text → SQLite, id = tool call id
-                                 model sees: head 1000 tok + "[... truncated ...]" + tail 1000 tok + footer
+                                 model sees: head 500 tok + "[... truncated ...]" + tail 500 tok + footer
 ```
 
 The footer the model sees:
 
 ```
 [tool-log: output truncated. 42,830 chars (~10,707 tokens) archived under id toolu_01AB…;
- shown above: first 1000 and last 1000 tokens. The middle is NOT lost. Retrieve it with:
+ shown above: first 500 and last 500 tokens. The middle is NOT lost. Retrieve it with:
   python3 /…/toollog.py recall toolu_01AB… --chunk K/N      chunk K of the full text split into N equal parts
   python3 /…/toollog.py recall toolu_01AB… --chunk A-B/N    chunks A through B of N
   python3 /…/toollog.py recall toolu_01AB…                  everything]
@@ -44,11 +44,11 @@ Environment variables of the process that starts the agent:
 | Variable | Default | Meaning |
 |---|---|---|
 | `TOOL_LOG_PRUNE` | unset | `1` enables pruning; anything else is pass-through |
-| `TOOL_LOG_HEAD` | 1000 | tokens kept from the start |
-| `TOOL_LOG_TAIL` | 1000 | tokens kept from the end |
+| `TOOL_LOG_HEAD` | 500 | tokens kept from the start |
+| `TOOL_LOG_TAIL` | 500 | tokens kept from the end |
 
 A result is pruned when it is longer than head + tail.
-Tokens are estimated as characters / 4. Example: `TOOL_LOG_PRUNE=1 TOOL_LOG_HEAD=500 TOOL_LOG_TAIL=300 claude`.
+Tokens are estimated as characters / 4. Example: `TOOL_LOG_PRUNE=1 TOOL_LOG_HEAD=1000 TOOL_LOG_TAIL=1000 claude`.
 
 ## Per agent
 
@@ -94,7 +94,7 @@ The binaries reject unknown flags, so the switch is the environment variable, se
 
 ## Verified end to end
 
-Every row was run against the real agent binary, no mocks, and checked from the raw transcript or the agent's printed output, not the model's self-report.
+Every row was run against the real agent binary, no mocks, and checked from the raw transcript or the agent's printed output, not the model's self-report. Measured with head 1000 / tail 1000; with the current default of 500 / 500 the pruned sizes are about half.
 
 | Agent | Tool | `TOOL_LOG_PRUNE=1` | unset |
 |---|---|---|---|
@@ -108,7 +108,7 @@ Every row was run against the real agent binary, no mocks, and checked from the 
 
 Replayed against 65 real Claude Code session transcripts from one machine (11,054 tool results, coding work on internal projects plus home-directory sessions). Read-only, nothing was modified.
 
-Settings used for every number below. Change them and the tables change.
+Settings used for every number below (the 1000 / 1000 run; the default shipped today is 500 / 500, compared further down). Change them and the tables change.
 
 | setting | value used |
 |---|---|
