@@ -106,31 +106,49 @@ Every row was run against the real agent binary, no mocks, and checked from the 
 
 ## Measured token reduction
 
-Replayed against 65 local Claude Code session transcripts (11,054 tool results, internal coding projects and home-directory sessions), read-only, with the hook's rule applied to every tool result: longer than head + tail → keep head + tail + a ~700-char footer. Tokens are chars / 4. The transcripts already carry Claude Code's own limits (Bash spilled above 30 KB, Read capped at 25k tokens per call), so the numbers are on top of those.
+Replayed against 65 local Claude Code session transcripts (11,054 tool results, internal coding projects and home-directory sessions), read-only. The hook's rule is applied to every tool result: longer than head + tail → keep head + tail plus a ~700-char footer. Tokens are chars / 4. The transcripts already carry Claude Code's own limits (Bash spilled above 30 KB, Read capped at 25k tokens per call), so the numbers are on top of those.
 
 Two configurations, everything else equal:
 
 | | head 1000 / tail 1000 | head 500 / tail 500 (default) |
 |---|---|---|
+| pruned when longer than | 2,000 tokens (8,000 chars) | 1,000 tokens (4,000 chars) |
 | results pruned | 335 of 11,054 (3.0%) | 806 (7.3%) |
-| tool-result tokens entering context | 3,663,843 → 2,861,549 (−21.9%) | → 2,451,446 (−33.1%) |
+| tool-result tokens entering context, paid once | 3,663,843 → 2,861,549 (−21.9%) | → 2,451,446 (−33.1%) |
+| same tokens re-sent on every later API call (prefix-cache reads), upper bound without compaction | −31.9% | −43.9% |
 | mean saving per session | 8.2% | 17.1% |
 | median saving per session | 1.1% | 10.3% |
-| range across sessions | 0–37% | 0–50% |
 
 Per tool type:
 
-| tool | results | avg tokens / result | saving 1000 / 1000 | saving 500 / 500 |
-|---|---|---|---|---|
-| Read | 530 | 2,045 | 47.5% | 64.5% |
-| subagent output (TaskOutput) | 19 | 1,572 | 59.6% | 73.0% |
-| MCP, browser server | 1,308 | 245 | 19.7% | 33.7% |
-| MCP, CRM server | 2,085 | 342 | 19.8% | 27.8% |
-| Bash | 5,139 | 271 | 7.6% | 17.9% |
-| WebFetch | 126 | 296 | 0% | 2.0% |
-| Edit, Write | 1,344 | 48 | 0% | 0% |
+| tool | results | avg tokens / result | pruned at 1000 / 1000 | saving | pruned at 500 / 500 | saving |
+|---|---|---|---|---|---|---|
+| Read | 530 | 2,045 | 163 | 47.5% | 234 | 64.5% |
+| subagent output (TaskOutput) | 19 | 1,572 | 4 | 59.6% | 4 | 73.0% |
+| MCP, browser server | 1,308 | 245 | 39 | 19.7% | 82 | 33.7% |
+| MCP, CRM server | 2,085 | 342 | 47 | 19.8% | 185 | 27.8% |
+| Bash | 5,139 | 271 | 107 | 7.6% | 295 | 17.9% |
+| WebFetch | 126 | 296 | 0 | 0% | 1 | 2.0% |
+| Edit, Write | 1,344 | 48 | 0 | 0% | 0 | 0% |
 
-Read is where the hook pays. Bash is mostly handled by the harness already. Edit and Write never cross the limit. Halving head and tail doubles the typical session's saving at the cost of 2.4x more results being cut, so more recall calls when the middle matters.
+Per session, the 12 largest:
+
+| session | tool results | API calls | tokens in | saving 1000 / 1000 | saving 500 / 500 |
+|---|---|---|---|---|---|
+| home, long mixed session | 2,900 | 4,131 | 1,614,399 | 37% | 50% |
+| internal, backend | 1,134 | 2,160 | 215,585 | 7% | 19% |
+| internal, backend | 672 | 1,199 | 142,616 | 8% | 15% |
+| internal, backend | 428 | 857 | 147,517 | 27% | 38% |
+| internal, backend | 388 | 848 | 144,016 | 7% | 20% |
+| internal, backend | 451 | 696 | 100,100 | 13% | 24% |
+| internal, backend | 426 | 869 | 74,000 | 2% | 6% |
+| internal, backend | 433 | 839 | 73,005 | 1% | 13% |
+| home | 312 | 584 | 73,673 | 2% | 9% |
+| internal, worktree | 157 | 278 | 52,369 | 27% | 34% |
+| internal, small session | 38 | 65 | 49,804 | 35% | 54% |
+| internal, backend | 139 | 268 | 53,716 | 19% | 33% |
+
+Read is where the hook pays. Bash is mostly handled by the harness already. Edit and Write never cross the limit. A plain coding session gains 2–10% at 1000 / 1000 and 10–20% at 500 / 500; sessions that read big files, pull MCP data or run long gain 25–50%. Halving head and tail doubles the typical saving at the cost of 2.4x more results being cut, so more recall calls when the middle matters. The re-sent row assumes no compaction, so it overstates very long sessions; the entering-context row is the conservative one.
 
 ## Files
 
