@@ -2,7 +2,7 @@
 
 Keep large tool results out of the model context. Archive them in full, keyed by tool call id, and show the model only the first and last 1000 tokens plus a footer that says exactly how to fetch the rest.
 
-Works for Claude Code, Codex and OpenCode from one shared implementation. Off by default. Active only when the agent is started with `--lean` (`claude --lean`, `codex --lean`, `opencode --lean`), which sets `TOOL_LOG_PRUNE=1` for that process only.
+Works for Claude Code, Codex and OpenCode from one shared implementation. Off by default. Active only when the agent is started with `TOOL_LOG_PRUNE=1` in its environment: `TOOL_LOG_PRUNE=1 claude`.
 
 ## Why
 
@@ -48,7 +48,7 @@ Environment variables of the process that starts the agent:
 | `TOOL_LOG_TAIL` | 1000 | tokens kept from the end |
 
 A result is pruned when it is longer than head + tail.
-Tokens are estimated as characters / 4. Example: `TOOL_LOG_HEAD=500 TOOL_LOG_TAIL=300 claude --lean`.
+Tokens are estimated as characters / 4. Example: `TOOL_LOG_PRUNE=1 TOOL_LOG_HEAD=500 TOOL_LOG_TAIL=300 claude`.
 
 ## Per agent
 
@@ -68,7 +68,7 @@ All logic is in `toollog.py`. The two Python hooks import it; the OpenCode plugi
 
 Codex only runs hooks it trusts. The installer writes the trust entry to `~/.codex/config.toml` the same way the TUI `/hooks` review does (sha256 of the canonical hook identity). Changing the hook command, timeout or statusMessage changes the hash; re-run the installer.
 
-Caveat: Codex applies PostToolUse feedback only on the function-tool path. Models catalogued as `code_mode_only` (gpt-6-astra and most current ones) run tools through code mode, where the hook fires and archives but the replacement is discarded by design. Direct-mode models (gpt-5.5) work: `codex --lean -m gpt-5.5`.
+Caveat: Codex applies PostToolUse feedback only on the function-tool path. Models catalogued as `code_mode_only` (gpt-6-astra and most current ones) run tools through code mode, where the hook fires and archives but the replacement is discarded by design. Direct-mode models (gpt-5.5) work: `TOOL_LOG_PRUNE=1 codex -m gpt-5.5`.
 
 ### OpenCode
 
@@ -80,26 +80,26 @@ For MCP tools OpenCode rebuilds the text from `result.content[]`, so the plugin 
 git clone https://github.com/m2cci-bouzentm/tool-log-prune && cd tool-log-prune && python3 install.py
 ```
 
-The installer registers the hooks pointing at the clone (no copies, `git pull` updates all three), trusts the Codex hook, symlinks the OpenCode plugin, and sources `lean.sh` from `~/.zshrc`. It is idempotent. Then, in a new shell:
+The installer registers the hooks pointing at the clone (no copies, `git pull` updates all three), trusts the Codex hook and symlinks the OpenCode plugin. It is idempotent. Then:
 
 ```
-claude --lean             # Claude Code with pruning
-codex --lean -m gpt-5.5   # Codex with pruning, direct-mode model
-opencode --lean           # OpenCode with pruning
-claude                    # plain, unchanged
-recall <id> --chunk 2/5
+TOOL_LOG_PRUNE=1 claude               # Claude Code with pruning
+TOOL_LOG_PRUNE=1 codex -m gpt-5.5     # Codex with pruning, direct-mode model
+TOOL_LOG_PRUNE=1 opencode             # OpenCode with pruning
+claude                                # plain, unchanged
+python3 toollog.py recall <id> --chunk 2/5
 ```
 
-`--lean` is not a flag the binaries know. `lean.sh` defines shell functions named `claude`, `codex` and `opencode` that strip `--lean`, set `TOOL_LOG_PRUNE=1` for that one process, and run the real binary. Without `--lean` they run the binary untouched.
+The binaries reject unknown flags, so the switch is the environment variable, set inline for one process. The hooks are registered permanently but do nothing without it.
 
 ## Verified end to end
 
 Every row was run against the real agent binary, no mocks, and checked from the raw transcript or the agent's printed output, not the model's self-report.
 
-| Agent | Tool | With flag | Without flag |
+| Agent | Tool | `TOOL_LOG_PRUNE=1` | unset |
 |---|---|---|---|
-| Claude Code 2.1.280 | Bash 12,000 chars | 8,996 chars + footer, archived | 12,000 chars, nothing archived |
-| Claude Code 2.1.280 | Read 25,096 chars | 9,336 chars + footer, archived | 25,096 chars, nothing archived |
+| Claude Code 2.1.280 | Bash 12,000 chars | 8,699 chars + footer, archived | 12,000 chars, nothing archived |
+| Claude Code 2.1.280 | Read 25,096 chars | 9,031 chars + footer, archived | 25,096 chars, nothing archived |
 | Claude Code 2.1.280 | MCP snapshot 42,830 chars | 8,997 chars + footer, archived | 42,830 chars, nothing archived |
 | Codex 0.154.0, gpt-5.5 | shell 12,000 chars | footer present, archived | untouched, nothing archived |
 | OpenCode 1.18.30 | bash 12,000 chars | 4,000-char runs + footer, archived | 12,000 chars, nothing archived |
@@ -111,7 +111,6 @@ toollog.py           shared module + CLI (prune, archive, recall)
 claude_hook.py       Claude Code PostToolUse hook
 codex_hook.py        Codex PostToolUse hook
 opencode_plugin.ts   OpenCode plugin
-lean.sh              the --lean flag for claude / codex / opencode, plus recall
 install.py           registers, trusts, symlinks
 ```
 

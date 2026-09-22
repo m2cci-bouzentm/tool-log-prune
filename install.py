@@ -2,7 +2,7 @@
 """Register tool-log-prune with Claude Code, Codex and OpenCode, pointing at this clone.
 
 No copies: `git pull` updates all three. Nothing is active until an agent is started with
-`--lean` (claude --lean / codex --lean / opencode --lean, see lean.sh).
+TOOL_LOG_PRUNE=1 in its environment, e.g. `TOOL_LOG_PRUNE=1 claude`.
 """
 import hashlib
 import json
@@ -88,20 +88,8 @@ def install_opencode():
     print("  OpenCode: plugin symlinked into ~/.config/opencode/plugins and registered")
 
 
-def install_shell_wrappers():
-    zshrc_path = f"{HOME}/.zshrc"
-    source_line = f"source {REPO_DIR}/lean.sh"
-    lines = open(zshrc_path).read().splitlines() if os.path.exists(zshrc_path) else []
-    lines = [line for line in lines if "lean.sh" not in line and "tool-result pruning wrappers" not in line]
-    lines += ["", "# tool-log-prune: --lean flag for claude / codex / opencode, plus recall", source_line]
-    with open(zshrc_path, "w") as zshrc:
-        zshrc.write("\n".join(lines) + "\n")
-    print("  Shell: wrappers sourced from ~/.zshrc (open a new shell)")
-
-
 if __name__ == "__main__":
     install_claude()
     install_codex()
     install_opencode()
-    install_shell_wrappers()
-    print("done. Start with: claude --lean | codex --lean -m gpt-5.5 | opencode --lean")
+    print("done. Start with: TOOL_LOG_PRUNE=1 claude | TOOL_LOG_PRUNE=1 codex -m gpt-5.5 | TOOL_LOG_PRUNE=1 opencode")

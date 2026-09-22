@@ -13,7 +13,7 @@ opencode_plugin.ts. Also the recall CLI the agent invokes:
   python3 toollog.py prune-text --id ID --tool T [--session S]   stdin text -> stdout pruned (used by OpenCode)
 
 Configuration (environment of the process that started the agent):
-  TOOL_LOG_PRUNE=1     enable (the --lean flag in lean.sh sets it); anything else = pass-through
+  TOOL_LOG_PRUNE=1     enable; anything else = pass-through
   TOOL_LOG_HEAD=1000   tokens kept from the start
   TOOL_LOG_TAIL=1000   tokens kept from the end
 A result is pruned when it is longer than head + tail. Tokens are estimated as characters / 4.
