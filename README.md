@@ -18,9 +18,9 @@ No classifier, no LLM call. Deterministic head + tail.
 
 ```
 tool runs → result → hook
-                      ├─ ≤ 2500 tokens: pass through untouched
-                      └─ > 2500 tokens: full text → SQLite, id = tool call id
-                                        model sees: head 1000 tok + "[... truncated ...]" + tail 1000 tok + footer
+                      ├─ fits in head + tail (≤ 2000 tokens): pass through untouched
+                      └─ longer: full text → SQLite, id = tool call id
+                                 model sees: head 1000 tok + "[... truncated ...]" + tail 1000 tok + footer
 ```
 
 The footer the model sees:
@@ -30,14 +30,12 @@ The footer the model sees:
  shown above: first 1000 and last 1000 tokens. The middle is NOT lost. Retrieve it with:
   python3 /…/toollog.py recall toolu_01AB… --chunk K/N      chunk K of the full text split into N equal parts
   python3 /…/toollog.py recall toolu_01AB… --chunk A-B/N    chunks A through B of N
-  python3 /…/toollog.py recall toolu_01AB… --grep PATTERN   only lines matching a regex, with line numbers
-  python3 /…/toollog.py recall toolu_01AB… --range S E      characters S..E
   python3 /…/toollog.py recall toolu_01AB…                  everything]
 ```
 
-So the agent reads the third tenth of a 100k log, or the lines matching `Error`, without paying for the rest.
+So the agent reads the third tenth of a 100k log without paying for the rest, or pipes the full text into `grep` itself.
 
-Archive: `~/.claude/tool-logs/tool_log.sqlite`, one table `results(id, session_id, ts, tool_name, tool_input, size_chars, output)`, shared by all three agents. `python3 toollog.py list [N]` shows the latest entries.
+Archive: `~/.claude/tool-logs/tool_log.sqlite`, one table `results(id, session_id, ts, tool_name, tool_input, size_chars, output)`, shared by all three agents.
 
 ## Configuration
 
@@ -48,10 +46,8 @@ Environment variables of the process that starts the agent:
 | `TOOL_LOG_PRUNE` | unset | `1` enables pruning; anything else is pass-through |
 | `TOOL_LOG_HEAD` | 1000 | tokens kept from the start |
 | `TOOL_LOG_TAIL` | 1000 | tokens kept from the end |
-| `TOOL_LOG_THRESHOLD` | 2500 | results at or below this many tokens are never touched |
-| `TOOL_LOG_DB` | `~/.claude/tool-logs/tool_log.sqlite` | archive location |
-| `TOOL_LOG_DEBUG` | unset | `1` dumps the last raw hook event next to the database |
 
+A result is pruned when it is longer than head + tail.
 Tokens are estimated as characters / 4. Example: `TOOL_LOG_HEAD=500 TOOL_LOG_TAIL=300 claude --lean`.
 
 ## Per agent
@@ -92,7 +88,6 @@ codex --lean -m gpt-5.5   # Codex with pruning, direct-mode model
 opencode --lean           # OpenCode with pruning
 claude                    # plain, unchanged
 recall <id> --chunk 2/5
-recall-list
 ```
 
 `--lean` is not a flag the binaries know. `lean.sh` defines shell functions named `claude`, `codex` and `opencode` that strip `--lean`, set `TOOL_LOG_PRUNE=1` for that one process, and run the real binary. Without `--lean` they run the binary untouched.
@@ -112,11 +107,11 @@ Every row was run against the real agent binary, no mocks, and checked from the 
 ## Files
 
 ```
-toollog.py           shared module + CLI (prune, archive, recall, list)
+toollog.py           shared module + CLI (prune, archive, recall)
 claude_hook.py       Claude Code PostToolUse hook
 codex_hook.py        Codex PostToolUse hook
 opencode_plugin.ts   OpenCode plugin
-lean.sh              the --lean flag for claude / codex / opencode, plus recall / recall-list
+lean.sh              the --lean flag for claude / codex / opencode, plus recall
 install.py           registers, trusts, symlinks
 ```
 

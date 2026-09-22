@@ -5,8 +5,7 @@
 # sets TOOL_LOG_PRUNE=1 for that one process, and runs the real binary. Without `--lean` the
 # binary runs exactly as before; the registered hooks see no TOOL_LOG_PRUNE and do nothing.
 #
-# Tuning: TOOL_LOG_HEAD=1000  TOOL_LOG_TAIL=1000  TOOL_LOG_THRESHOLD=2500  (tokens), e.g.
-#   TOOL_LOG_HEAD=500 claude --lean
+# Tuning: TOOL_LOG_HEAD=1000  TOOL_LOG_TAIL=1000  (tokens), e.g.  TOOL_LOG_HEAD=500 claude --lean
 
 TOOL_LOG_DIR="${TOOL_LOG_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")" && pwd)}"
 
@@ -27,6 +26,5 @@ claude()   { _tool_log_run claude "$@"; }
 codex()    { _tool_log_run codex "$@"; }
 opencode() { _tool_log_run opencode "$@"; }
 
-# Fetch an archived tool result:  recall <id> [--chunk K/N | --grep PATTERN | --range A B]   |   recall-list [N]
-recall()      { python3 "$TOOL_LOG_DIR/toollog.py" recall "$@"; }
-recall-list() { python3 "$TOOL_LOG_DIR/toollog.py" list "$@"; }
+# Fetch an archived tool result:  recall <id> [--chunk K/N | --chunk A-B/N]
+recall() { python3 "$TOOL_LOG_DIR/toollog.py" recall "$@"; }

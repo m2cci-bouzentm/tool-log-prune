@@ -10,30 +10,24 @@ opencode_plugin.ts. Also the recall CLI the agent invokes:
   python3 toollog.py recall <id>                 full archived text
   python3 toollog.py recall <id> --chunk 3/10    chunk 3 of the text split into 10 equal parts
   python3 toollog.py recall <id> --chunk 1-3/10  chunks 1 to 3 of 10
-  python3 toollog.py recall <id> --grep PATTERN  matching lines, numbered
-  python3 toollog.py recall <id> --range A B     characters A..B
-  python3 toollog.py list [N]                    last N archived results
-  python3 toollog.py list --session <session_id>
   python3 toollog.py prune-text --id ID --tool T [--session S]   stdin text -> stdout pruned (used by OpenCode)
 
 Configuration (environment of the process that started the agent):
-  TOOL_LOG_PRUNE=1          enable (the --lean flag in lean.sh sets it); anything else = pass-through
-  TOOL_LOG_HEAD=1000        tokens kept from the start
-  TOOL_LOG_TAIL=1000        tokens kept from the end
-  TOOL_LOG_THRESHOLD=2500   results at or below this many tokens are never touched
-  TOOL_LOG_DB=~/.claude/tool-logs/tool_log.sqlite
-  TOOL_LOG_DEBUG=1          write the last raw hook event next to the database
-Tokens are estimated as characters / 4.
+  TOOL_LOG_PRUNE=1     enable (the --lean flag in lean.sh sets it); anything else = pass-through
+  TOOL_LOG_HEAD=1000   tokens kept from the start
+  TOOL_LOG_TAIL=1000   tokens kept from the end
+A result is pruned when it is longer than head + tail. Tokens are estimated as characters / 4.
 """
 import json
 import os
-import re
 import sqlite3
 import sys
 import time
 
 CHARS_PER_TOKEN = 4
 SELF_PATH = os.path.abspath(__file__)
+DB_PATH = os.path.expanduser("~/.claude/tool-logs/tool_log.sqlite")
+LOG_DIR = os.path.dirname(DB_PATH)
 
 
 def _int_from_env(variable_name, default_value):
@@ -45,9 +39,6 @@ def _int_from_env(variable_name, default_value):
 
 HEAD_TOKENS = _int_from_env("TOOL_LOG_HEAD", 1000)
 TAIL_TOKENS = _int_from_env("TOOL_LOG_TAIL", 1000)
-THRESHOLD_TOKENS = _int_from_env("TOOL_LOG_THRESHOLD", 2500)
-DB_PATH = os.path.expanduser(os.environ.get("TOOL_LOG_DB", "~/.claude/tool-logs/tool_log.sqlite"))
-LOG_DIR = os.path.dirname(DB_PATH)
 
 
 def enabled():
@@ -177,7 +168,7 @@ def fetch(tool_use_id):
 # ---------------------------------------------------------------- pruning
 
 def needs_pruning(full_text):
-    return len(full_text) > THRESHOLD_TOKENS * CHARS_PER_TOKEN
+    return len(full_text) > (HEAD_TOKENS + TAIL_TOKENS) * CHARS_PER_TOKEN
 
 
 def footer(tool_use_id, size_chars):
@@ -188,8 +179,6 @@ def footer(tool_use_id, size_chars):
         f" shown above: first {HEAD_TOKENS} and last {TAIL_TOKENS} tokens. The middle is NOT lost. Retrieve it with:"
         f"\n  {recall_command} --chunk K/N      chunk K of the full text split into N equal parts (e.g. --chunk 3/10)"
         f"\n  {recall_command} --chunk A-B/N    chunks A through B of N (e.g. --chunk 1-3/10)"
-        f"\n  {recall_command} --grep PATTERN   only lines matching a regex, with line numbers"
-        f"\n  {recall_command} --range S E      characters S..E"
         f"\n  {recall_command}                  everything]"
     )
 
@@ -206,14 +195,10 @@ def prune_hook_event(hook_event, agent_name):
     """Shared hook flow for Claude Code and Codex.
 
     Returns (tool_response, pruned_text), or None when nothing should change:
-    pruning disabled, or the result is at or below the threshold.
+    pruning disabled, or the result fits within head + tail.
     """
     if not enabled():
         return None
-    if os.environ.get("TOOL_LOG_DEBUG") == "1":
-        os.makedirs(LOG_DIR, exist_ok=True)
-        with open(os.path.join(LOG_DIR, f"last_{agent_name}_event.json"), "w") as debug_file:
-            json.dump(hook_event, debug_file)
     tool_response = hook_event.get("tool_response")
     full_text = extract_text(tool_response)
     if not needs_pruning(full_text):
@@ -254,66 +239,35 @@ def _command_prune_text(arguments):
     return 0
 
 
-def _command_list(arguments):
-    columns = "SELECT id, datetime(ts,'unixepoch','localtime'), tool_name, size_chars FROM results"
-    connection = _connect()
-    if arguments[:1] == ["--session"]:
-        rows = connection.execute(columns + " WHERE session_id=? ORDER BY ts", (arguments[1],)).fetchall()
-    else:
-        row_limit = int(arguments[0]) if arguments else 20
-        rows = connection.execute(columns + " ORDER BY ts DESC LIMIT ?", (row_limit,)).fetchall()
-    connection.close()
-    for tool_use_id, timestamp, tool_name, size_chars in rows:
-        print(f"{tool_use_id}  {tool_name:<40} {size_chars:>10,} chars  {timestamp}")
-    return 0
-
-
-def _recall_chunk(tool_use_id, full_text, chunk_spec):
-    try:
-        selected_text, first_chunk, last_chunk, chunk_count, start_char, end_char = chunk_text(full_text, chunk_spec)
-    except ValueError as error:
-        print(error, file=sys.stderr)
-        return 2
-    label = f"chunk {first_chunk}/{chunk_count}" if first_chunk == last_chunk else f"chunks {first_chunk}-{last_chunk}/{chunk_count}"
-    sys.stdout.write(f"[tool-log {tool_use_id}: {label}, chars {start_char:,}..{end_char:,} of {len(full_text):,}]\n{selected_text}\n")
-    return 0
-
-
-def _recall_grep(full_text, pattern_text):
-    pattern = re.compile(pattern_text, re.I)
-    for line_number, line in enumerate(full_text.splitlines(), 1):
-        if pattern.search(line):
-            print(f"{line_number}: {line}")
-    return 0
-
-
 def _command_recall(arguments):
     if not arguments:
-        print("usage: recall <id> [--chunk K/N | --chunk A-B/N | --grep PATTERN | --range START END]", file=sys.stderr)
+        print("usage: recall <id> [--chunk K/N | --chunk A-B/N]", file=sys.stderr)
         return 2
     tool_use_id, options = arguments[0], arguments[1:]
     full_text = fetch(tool_use_id)
     if full_text is None:
         print(f"no archived result for id {tool_use_id}", file=sys.stderr)
         return 1
-    if options[:1] == ["--chunk"]:
-        return _recall_chunk(tool_use_id, full_text, options[1])
-    if options[:1] == ["--grep"]:
-        return _recall_grep(full_text, options[1])
-    if options[:1] == ["--range"]:
-        sys.stdout.write(full_text[int(options[1]):int(options[2])])
+    if options[:1] != ["--chunk"]:
+        sys.stdout.write(full_text)
         return 0
-    sys.stdout.write(full_text)
+    try:
+        selected_text, first_chunk, last_chunk, chunk_count, start_char, end_char = chunk_text(full_text, options[1])
+    except (ValueError, IndexError) as error:
+        print(error or "usage: recall <id> --chunk K/N", file=sys.stderr)
+        return 2
+    label = f"chunk {first_chunk}/{chunk_count}" if first_chunk == last_chunk else f"chunks {first_chunk}-{last_chunk}/{chunk_count}"
+    sys.stdout.write(f"[tool-log {tool_use_id}: {label}, chars {start_char:,}..{end_char:,} of {len(full_text):,}]\n{selected_text}\n")
     return 0
 
 
-COMMANDS = {"prune-text": _command_prune_text, "list": _command_list, "recall": _command_recall}
+COMMANDS = {"prune-text": _command_prune_text, "recall": _command_recall}
 
 
 def cli(argv):
-    if not argv or argv[0] in ("-h", "--help") or argv[0] not in COMMANDS:
+    if not argv or argv[0] not in COMMANDS:
         print(__doc__)
-        return 0 if argv and argv[0] in ("-h", "--help") else 2
+        return 2
     return COMMANDS[argv[0]](argv[1:])
 
 
