@@ -95,7 +95,9 @@ def _extract_from_dict(tool_response):
         return file_info["content"]
     if "content" in tool_response:
         return extract_text(tool_response["content"])
-    return json.dumps(tool_response, ensure_ascii=False)
+    # Unknown shape (e.g. Edit's {filePath, oldString, newString, originalFile, structuredPatch}):
+    # the model sees a short rendered message, not this object, so there is nothing to replace.
+    return ""
 
 
 def rebuild(tool_response, replacement_text):
