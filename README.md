@@ -94,7 +94,7 @@ The binaries reject unknown flags, so the switch is the environment variable, se
 
 ## Verified end to end
 
-Every row was run against the real agent binary, no mocks, and checked from the raw transcript or the agent's printed output, not the model's self-report. Measured with head 1000 / tail 1000; with the current default of 500 / 500 the pruned sizes are about half.
+Every row was run against the real agent binary, no mocks, and checked from the raw transcript or the agent's printed output, not the model's self-report. Head 1000 / tail 1000 at the time; the default is now 500 / 500.
 
 | Agent | Tool | `TOOL_LOG_PRUNE=1` | unset |
 |---|---|---|---|
@@ -106,83 +106,31 @@ Every row was run against the real agent binary, no mocks, and checked from the 
 
 ## Measured token reduction
 
-Replayed against 65 real Claude Code session transcripts from one machine (11,054 tool results, coding work on internal projects plus home-directory sessions). Read-only, nothing was modified.
+Replayed against 65 local Claude Code session transcripts (11,054 tool results, internal coding projects and home-directory sessions), read-only, with the hook's rule applied to every tool result: longer than head + tail → keep head + tail + a ~700-char footer. Tokens are chars / 4. The transcripts already carry Claude Code's own limits (Bash spilled above 30 KB, Read capped at 25k tokens per call), so the numbers are on top of those.
 
-Settings used for every number below (the 1000 / 1000 run; the default shipped today is 500 / 500, compared further down). Change them and the tables change.
+Two configurations, everything else equal:
 
-| setting | value used |
-|---|---|
-| `TOOL_LOG_HEAD` | 1000 tokens (4,000 chars) |
-| `TOOL_LOG_TAIL` | 1000 tokens (4,000 chars) |
-| prune when result longer than | head + tail = 2,000 tokens (8,000 chars) |
-| footer added to a pruned result | ~700 chars |
-| token estimate | chars / 4 |
-| Claude Code version of the transcripts | up to 2.1.280, with its own limits already applied (Bash spilled above 30 KB, Read capped at 25k tokens per call) |
-
-| metric | value |
-|---|---|
-| tool results longer than 8k chars | 335 of 11,054 (3.0%) |
-| tool-result tokens entering context, all sessions | 3,663,843 → 2,861,549 (−21.9%) |
-| same tokens re-sent on every later API call (prefix cache reads), upper bound without compaction | −31.9% |
-| mean saving per session | 8.2% |
-| median saving per session | 1.1% |
-
-Per session, the 12 largest:
-
-| session | tool results | >8k | API calls | tokens in | tokens after | saving |
-|---|---|---|---|---|---|---|
-| home, long mixed session | 2,900 | 182 | 4,131 | 1,614,399 | 1,013,237 | 37% |
-| internal, backend | 1,134 | 19 | 2,160 | 215,585 | 200,351 | 7% |
-| internal, backend | 672 | 6 | 1,199 | 142,616 | 130,968 | 8% |
-| internal, backend | 428 | 12 | 857 | 147,517 | 107,406 | 27% |
-| internal, backend | 388 | 12 | 848 | 144,016 | 134,113 | 7% |
-| internal, backend | 451 | 8 | 696 | 100,100 | 87,364 | 13% |
-| internal, backend | 426 | 2 | 869 | 74,000 | 72,737 | 2% |
-| internal, backend | 433 | 7 | 839 | 73,005 | 72,043 | 1% |
-| home | 312 | 3 | 584 | 73,673 | 71,881 | 2% |
-| internal, worktree | 157 | 4 | 278 | 52,369 | 38,401 | 27% |
-| internal, small session | 38 | 9 | 65 | 49,804 | 32,515 | 35% |
-| internal, backend | 139 | 7 | 268 | 53,716 | 43,620 | 19% |
-
-Per tool type, all sessions combined:
-
-| tool | results | >8k | avg tokens / result | tokens before | tokens after | saving |
-|---|---|---|---|---|---|---|
-| Read | 530 | 163 | 2,045 | 1,084,317 | 569,782 | 47.5% |
-| subagent output (TaskOutput) | 19 | 4 | 1,572 | 29,878 | 12,056 | 59.6% |
-| MCP, CRM server | 2,085 | 47 | 342 | 713,229 | 572,138 | 19.8% |
-| MCP, browser server | 1,308 | 39 | 245 | 321,485 | 258,299 | 19.7% |
-| Bash | 5,135 | 107 | 271 | 1,395,996 | 1,290,424 | 7.6% |
-| Edit | 923 | 0 | 49 | 45,409 | 45,409 | 0% |
-| Write | 419 | 0 | 46 | 19,320 | 19,320 | 0% |
-
-Same replay with `TOOL_LOG_HEAD=500 TOOL_LOG_TAIL=500` (prune above 4,000 chars), everything else unchanged:
-
-| metric | 1000 / 1000 | 500 / 500 |
+| | head 1000 / tail 1000 | head 500 / tail 500 (default) |
 |---|---|---|
-| results above the limit | 335 (3.0%) | 806 (7.3%) |
-| tokens inserted | −21.9% | −33.1% |
+| results pruned | 335 of 11,054 (3.0%) | 806 (7.3%) |
+| tool-result tokens entering context | 3,663,843 → 2,861,549 (−21.9%) | → 2,451,446 (−33.1%) |
 | mean saving per session | 8.2% | 17.1% |
 | median saving per session | 1.1% | 10.3% |
+| range across sessions | 0–37% | 0–50% |
 
-| tool | results | >limit at 500/500 | saving 1000/1000 | saving 500/500 |
+Per tool type:
+
+| tool | results | avg tokens / result | saving 1000 / 1000 | saving 500 / 500 |
 |---|---|---|---|---|
-| Read | 530 | 234 | 47.5% | 64.5% |
-| subagent output (TaskOutput) | 19 | 4 | 59.6% | 73.0% |
-| MCP, browser server | 1,308 | 82 | 19.7% | 33.7% |
-| MCP, CRM server | 2,085 | 185 | 19.8% | 27.8% |
-| Bash | 5,139 | 295 | 7.6% | 17.9% |
-| WebFetch | 126 | 1 | 0% | 2.0% |
-| Edit, Write | 1,344 | 0 | 0% | 0% |
+| Read | 530 | 2,045 | 47.5% | 64.5% |
+| subagent output (TaskOutput) | 19 | 1,572 | 59.6% | 73.0% |
+| MCP, browser server | 1,308 | 245 | 19.7% | 33.7% |
+| MCP, CRM server | 2,085 | 342 | 19.8% | 27.8% |
+| Bash | 5,139 | 271 | 7.6% | 17.9% |
+| WebFetch | 126 | 296 | 0% | 2.0% |
+| Edit, Write | 1,344 | 48 | 0% | 0% |
 
-Halving head and tail moves the median session from 1% to 10% and Bash from 8% to 18%, at the price of 2.4x more results being cut (806 vs 335), so more recall calls when the middle matters.
-
-What this means:
-
-- A typical coding session gains 2–10% at 1000/1000, 10–20% at 500/500. Only 3% of results are big enough to trim, because Claude Code already spills Bash output above 30 KB to a file and caps Read at 25k tokens per call.
-- Sessions that read big files, pull MCP data (CRM inboxes, browser snapshots) or run long: 25–37%.
-- Read is the main win. Bash is mostly handled by the harness already.
-- The re-sent figure assumes no compaction, so it overstates very long sessions; the per-insertion figure is the conservative one.
+Read is where the hook pays. Bash is mostly handled by the harness already. Edit and Write never cross the limit. Halving head and tail doubles the typical session's saving at the cost of 2.4x more results being cut, so more recall calls when the middle matters.
 
 ## Files
 
