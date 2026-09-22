@@ -104,6 +104,51 @@ Every row was run against the real agent binary, no mocks, and checked from the 
 | Codex 0.154.0, gpt-5.5 | shell 12,000 chars | footer present, archived | untouched, nothing archived |
 | OpenCode 1.18.30 | bash 12,000 chars | 4,000-char runs + footer, archived | 12,000 chars, nothing archived |
 
+## Measured token reduction
+
+Replayed against 65 real Claude Code session transcripts from one machine (11,054 tool results, coding work on internal projects plus home-directory sessions). For each tool result the replay applies the same rule as the hook: longer than 8,000 chars → keep 8,000 + a 700-char footer. Tokens are estimated as chars / 4. Read-only, nothing was modified.
+
+| metric | value |
+|---|---|
+| tool results longer than 8k chars | 335 of 11,054 (3.0%) |
+| tool-result tokens entering context, all sessions | 3,663,843 → 2,861,549 (−21.9%) |
+| same tokens re-sent on every later API call (prefix cache reads), upper bound without compaction | −31.9% |
+| mean saving per session | 8.2% |
+| median saving per session | 1.1% |
+
+Per session, the 12 largest:
+
+| session | tool results | >8k | API calls | tokens in | tokens after | saving |
+|---|---|---|---|---|---|---|
+| home, long mixed session | 2,900 | 182 | 4,131 | 1,614,399 | 1,013,237 | 37% |
+| internal, backend | 1,134 | 19 | 2,160 | 215,585 | 200,351 | 7% |
+| internal, backend | 672 | 6 | 1,199 | 142,616 | 130,968 | 8% |
+| internal, backend | 428 | 12 | 857 | 147,517 | 107,406 | 27% |
+| internal, backend | 388 | 12 | 848 | 144,016 | 134,113 | 7% |
+| internal, backend | 451 | 8 | 696 | 100,100 | 87,364 | 13% |
+| internal, backend | 426 | 2 | 869 | 74,000 | 72,737 | 2% |
+| internal, backend | 433 | 7 | 839 | 73,005 | 72,043 | 1% |
+| home | 312 | 3 | 584 | 73,673 | 71,881 | 2% |
+| internal, worktree | 157 | 4 | 278 | 52,369 | 38,401 | 27% |
+| internal, small session | 38 | 9 | 65 | 49,804 | 32,515 | 35% |
+| internal, backend | 139 | 7 | 268 | 53,716 | 43,620 | 19% |
+
+Where the saved tokens come from:
+
+| tool | large results | tokens saved | share |
+|---|---|---|---|
+| Read | 163 | 514,535 | 61% |
+| MCP servers (CRM, browser, memory) | 87 | 204,986 | 24% |
+| Bash | 107 | 105,572 | 12% |
+| subagent output | 4 | 17,821 | 2% |
+
+What this means:
+
+- A typical coding session gains 2–10%. Only 3% of results are big enough to trim, because Claude Code already spills Bash output above 30 KB to a file and caps Read at 25k tokens per call.
+- Sessions that read big files, pull MCP data (CRM inboxes, browser snapshots) or run long: 25–37%.
+- Read is the main win. Bash is mostly handled by the harness already.
+- The re-sent figure assumes no compaction, so it overstates very long sessions; the per-insertion figure is the conservative one.
+
 ## Files
 
 ```
