@@ -106,7 +106,18 @@ Every row was run against the real agent binary, no mocks, and checked from the 
 
 ## Measured token reduction
 
-Replayed against 65 real Claude Code session transcripts from one machine (11,054 tool results, coding work on internal projects plus home-directory sessions). For each tool result the replay applies the same rule as the hook: longer than 8,000 chars → keep 8,000 + a 700-char footer. Tokens are estimated as chars / 4. Read-only, nothing was modified.
+Replayed against 65 real Claude Code session transcripts from one machine (11,054 tool results, coding work on internal projects plus home-directory sessions). Read-only, nothing was modified.
+
+Settings used for every number below. Change them and the tables change.
+
+| setting | value used |
+|---|---|
+| `TOOL_LOG_HEAD` | 1000 tokens (4,000 chars) |
+| `TOOL_LOG_TAIL` | 1000 tokens (4,000 chars) |
+| prune when result longer than | head + tail = 2,000 tokens (8,000 chars) |
+| footer added to a pruned result | ~700 chars |
+| token estimate | chars / 4 |
+| Claude Code version of the transcripts | up to 2.1.280, with its own limits already applied (Bash spilled above 30 KB, Read capped at 25k tokens per call) |
 
 | metric | value |
 |---|---|
