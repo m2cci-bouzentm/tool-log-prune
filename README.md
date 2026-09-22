@@ -156,9 +156,30 @@ Per tool type, all sessions combined:
 | Edit | 923 | 0 | 49 | 45,409 | 45,409 | 0% |
 | Write | 419 | 0 | 46 | 19,320 | 19,320 | 0% |
 
+Same replay with `TOOL_LOG_HEAD=500 TOOL_LOG_TAIL=500` (prune above 4,000 chars), everything else unchanged:
+
+| metric | 1000 / 1000 | 500 / 500 |
+|---|---|---|
+| results above the limit | 335 (3.0%) | 806 (7.3%) |
+| tokens inserted | −21.9% | −33.1% |
+| mean saving per session | 8.2% | 17.1% |
+| median saving per session | 1.1% | 10.3% |
+
+| tool | results | >limit at 500/500 | saving 1000/1000 | saving 500/500 |
+|---|---|---|---|---|
+| Read | 530 | 234 | 47.5% | 64.5% |
+| subagent output (TaskOutput) | 19 | 4 | 59.6% | 73.0% |
+| MCP, browser server | 1,308 | 82 | 19.7% | 33.7% |
+| MCP, CRM server | 2,085 | 185 | 19.8% | 27.8% |
+| Bash | 5,139 | 295 | 7.6% | 17.9% |
+| WebFetch | 126 | 1 | 0% | 2.0% |
+| Edit, Write | 1,344 | 0 | 0% | 0% |
+
+Halving head and tail moves the median session from 1% to 10% and Bash from 8% to 18%, at the price of 2.4x more results being cut (806 vs 335), so more recall calls when the middle matters.
+
 What this means:
 
-- A typical coding session gains 2–10%. Only 3% of results are big enough to trim, because Claude Code already spills Bash output above 30 KB to a file and caps Read at 25k tokens per call.
+- A typical coding session gains 2–10% at 1000/1000, 10–20% at 500/500. Only 3% of results are big enough to trim, because Claude Code already spills Bash output above 30 KB to a file and caps Read at 25k tokens per call.
 - Sessions that read big files, pull MCP data (CRM inboxes, browser snapshots) or run long: 25–37%.
 - Read is the main win. Bash is mostly handled by the harness already.
 - The re-sent figure assumes no compaction, so it overstates very long sessions; the per-insertion figure is the conservative one.
