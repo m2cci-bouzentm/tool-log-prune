@@ -133,14 +133,17 @@ Per session, the 12 largest:
 | internal, small session | 38 | 9 | 65 | 49,804 | 32,515 | 35% |
 | internal, backend | 139 | 7 | 268 | 53,716 | 43,620 | 19% |
 
-Where the saved tokens come from:
+Per tool type, all sessions combined:
 
-| tool | large results | tokens saved | share |
-|---|---|---|---|
-| Read | 163 | 514,535 | 61% |
-| MCP servers (CRM, browser, memory) | 87 | 204,986 | 24% |
-| Bash | 107 | 105,572 | 12% |
-| subagent output | 4 | 17,821 | 2% |
+| tool | results | >8k | avg tokens / result | tokens before | tokens after | saving |
+|---|---|---|---|---|---|---|
+| Read | 530 | 163 | 2,045 | 1,084,317 | 569,782 | 47.5% |
+| subagent output (TaskOutput) | 19 | 4 | 1,572 | 29,878 | 12,056 | 59.6% |
+| MCP, CRM server | 2,085 | 47 | 342 | 713,229 | 572,138 | 19.8% |
+| MCP, browser server | 1,308 | 39 | 245 | 321,485 | 258,299 | 19.7% |
+| Bash | 5,135 | 107 | 271 | 1,395,996 | 1,290,424 | 7.6% |
+| Edit | 923 | 0 | 49 | 45,409 | 45,409 | 0% |
+| Write | 419 | 0 | 46 | 19,320 | 19,320 | 0% |
 
 What this means:
 
