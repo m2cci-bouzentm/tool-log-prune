@@ -4,15 +4,15 @@ Keep large tool results out of the model context. Archive them in full, keyed by
 
 Works for Claude Code, Codex and OpenCode from one shared implementation. Off by default. Active only when the agent is started with `TOOL_LOG_PRUNE=1` in its environment: `TOOL_LOG_PRUNE=1 claude`.
 
-## Why
+## The idea
 
-Tool results are the part of an agent's context that grows without bound. One browser snapshot is 40k characters, a file read 25k, a test log 30k, and most of it is read once. Compaction and summaries come too late and are lossy. This hook trims at insertion time, so:
+I had seen tools that prune tool results out of the chat history as a session goes on. The reasoning is sound: ten messages later, do you still need the 40k-character snapshot or the full file you read once? Mostly not.
 
-- the prompt-cache prefix stays append-only: nothing already in context is ever rewritten,
-- nothing is lost: the full result is on disk and can be fetched by id, in chunks,
-- the model still sees enough to know whether the call succeeded (head) and what the final state is (tail).
+The problem is the prompt cache. An agent session is one long prefix that the provider caches. Rewrite or delete a result that is already in the history and the prefix changes from that point on, so every later call re-reads everything after it at full price. Pruning after the fact costs more than it saves.
 
-No classifier, no LLM call. Deterministic head + tail.
+So the idea behind this hook: prune before the result ever enters the context, and save the full text somewhere in case it is still needed. The model sees the head and the tail, enough to know whether the call worked and what the end state is, plus a pointer. The rest sits in an archive keyed by the tool call id and comes back on demand, in chunks. The prefix stays append-only, the cache keeps hitting, and nothing is lost.
+
+No classifier, no LLM call, no summary. Deterministic head + tail, off by default, on with one environment variable.
 
 ## How it works
 
