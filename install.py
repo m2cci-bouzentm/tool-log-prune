@@ -49,6 +49,8 @@ def install_claude():
     subprocess.run(["claude", "plugin", "marketplace", "add", MARKETPLACE], check=False, capture_output=True)
     subprocess.run(["claude", "plugin", "marketplace", "update", "tool-log-prune"], check=False, capture_output=True)
     install = subprocess.run(["claude", "plugin", "install", PLUGIN, "--scope", "user"], capture_output=True, text=True)
+    if "already installed" in install.stdout + install.stderr:
+        install = subprocess.run(["claude", "plugin", "update", PLUGIN], capture_output=True, text=True)
     outcome = (install.stdout + install.stderr).strip().splitlines()
     print("  Claude Code:", outcome[-1] if outcome else f"plugin {PLUGIN} installed")
 
