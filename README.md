@@ -28,10 +28,12 @@ The footer the model sees:
 ```
 [tool-log: output truncated. 42,830 chars (~10,707 tokens) archived under id toolu_01AB…;
  shown above: first 500 and last 500 tokens. The middle is NOT lost. Retrieve it with:
-  python3 /…/toollog.py recall toolu_01AB… --chunk K/N      chunk K of the full text split into N equal parts
-  python3 /…/toollog.py recall toolu_01AB… --chunk A-B/N    chunks A through B of N
-  python3 /…/toollog.py recall toolu_01AB…                  everything]
+  recall toolu_01AB… --chunk K/N      chunk K of the full text split into N equal parts
+  recall toolu_01AB… --chunk A-B/N    chunks A through B of N
+  recall toolu_01AB…                  everything]
 ```
+
+`recall` is a two-line shim in `~/.local/bin` written by the installer. Without it (plugin-only install) the footer prints the full `python3 …/hooks/toollog.py recall` path instead.
 
 So the agent reads the third tenth of a 100k log without paying for the rest, or pipes the full text into `grep` itself.
 
@@ -89,14 +91,14 @@ All three agents:
 git clone https://github.com/m2cci-bouzentm/tool-log-prune && cd tool-log-prune && python3 install.py
 ```
 
-The installer runs the two plugin commands above for Claude Code, registers and trusts the Codex hook in `~/.codex/hooks.json` pointing at the clone, and symlinks the OpenCode plugin into `~/.config/opencode/plugins/`. It is idempotent. Then:
+The installer runs the two plugin commands above for Claude Code, registers and trusts the Codex hook in `~/.codex/hooks.json` pointing at the clone, symlinks the OpenCode plugin into `~/.config/opencode/plugins/`, and puts `recall` in `~/.local/bin`. It is idempotent. Then:
 
 ```
 TOOL_LOG_PRUNE=1 claude               # Claude Code with pruning
 TOOL_LOG_PRUNE=1 codex -m gpt-5.5     # Codex with pruning, direct-mode model
 TOOL_LOG_PRUNE=1 opencode             # OpenCode with pruning
 claude                                # plain, unchanged
-python3 hooks/toollog.py recall <id> --chunk 2/5
+recall <id> --chunk 2/5
 ```
 
 The binaries reject unknown flags, so the switch is the environment variable, set inline for one process. The hooks are registered permanently but do nothing without it.

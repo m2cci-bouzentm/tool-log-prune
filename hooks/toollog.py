@@ -7,9 +7,9 @@ model only the head and tail plus a footer that says how to fetch the rest.
 Imported by claude_hook.py and codex_hook.py. Called as a subprocess by
 opencode_plugin.ts. Also the recall CLI the agent invokes:
 
-  python3 toollog.py recall <id>                 full archived text
-  python3 toollog.py recall <id> --chunk 3/10    chunk 3 of the text split into 10 equal parts
-  python3 toollog.py recall <id> --chunk 1-3/10  chunks 1 to 3 of 10
+  recall <id>                 full archived text        (recall = python3 toollog.py recall, installed by install.py)
+  recall <id> --chunk 3/10    chunk 3 of the text split into 10 equal parts
+  recall <id> --chunk 1-3/10  chunks 1 to 3 of 10
   python3 toollog.py prune-text --id ID --tool T [--session S]   stdin text -> stdout pruned (used by OpenCode)
 
 Configuration (environment of the process that started the agent):
@@ -20,6 +20,7 @@ A result is pruned when it is longer than head + tail. Tokens are estimated as c
 """
 import json
 import os
+import shutil
 import sqlite3
 import sys
 import time
@@ -173,15 +174,22 @@ def needs_pruning(full_text):
     return len(full_text) > (HEAD_TOKENS + TAIL_TOKENS) * CHARS_PER_TOKEN
 
 
+def recall_command(tool_use_id):
+    """`recall <id>` when install.py put the shim on PATH, otherwise the full path to this file."""
+    if shutil.which("recall"):
+        return f"recall {tool_use_id}"
+    return f"python3 {SELF_PATH} recall {tool_use_id}"
+
+
 def footer(tool_use_id, size_chars):
     estimated_tokens = size_chars // CHARS_PER_TOKEN
-    recall_command = f"python3 {SELF_PATH} recall {tool_use_id}"
+    command = recall_command(tool_use_id)
     return (
         f"\n\n[tool-log: output truncated. {size_chars:,} chars (~{estimated_tokens:,} tokens) archived under id {tool_use_id};"
         f" shown above: first {HEAD_TOKENS} and last {TAIL_TOKENS} tokens. The middle is NOT lost. Retrieve it with:"
-        f"\n  {recall_command} --chunk K/N      chunk K of the full text split into N equal parts (e.g. --chunk 3/10)"
-        f"\n  {recall_command} --chunk A-B/N    chunks A through B of N (e.g. --chunk 1-3/10)"
-        f"\n  {recall_command}                  everything]"
+        f"\n  {command} --chunk K/N      chunk K of the full text split into N equal parts (e.g. --chunk 3/10)"
+        f"\n  {command} --chunk A-B/N    chunks A through B of N (e.g. --chunk 1-3/10)"
+        f"\n  {command}                  everything]"
     )
 
 

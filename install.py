@@ -108,8 +108,21 @@ def install_opencode():
     print("  OpenCode: plugin symlinked into ~/.config/opencode/plugins and registered")
 
 
+def install_recall_command():
+    """`recall <id> [--chunk K/N]` on PATH, so the footer can print a short command."""
+    bin_dir = f"{HOME}/.local/bin"
+    os.makedirs(bin_dir, exist_ok=True)
+    shim_path = f"{bin_dir}/recall"
+    with open(shim_path, "w") as shim:
+        shim.write(f'#!/bin/sh\nexec python3 "{REPO_DIR}/hooks/toollog.py" recall "$@"\n')
+    os.chmod(shim_path, 0o755)
+    on_path = bin_dir in os.environ.get("PATH", "").split(os.pathsep)
+    print(f"  recall: {shim_path}" + ("" if on_path else "  (add ~/.local/bin to PATH)"))
+
+
 if __name__ == "__main__":
     install_claude()
     install_codex()
     install_opencode()
+    install_recall_command()
     print("done. Start with: TOOL_LOG_PRUNE=1 claude | TOOL_LOG_PRUNE=1 codex -m gpt-5.5 | TOOL_LOG_PRUNE=1 opencode")
