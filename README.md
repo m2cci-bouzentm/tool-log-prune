@@ -54,11 +54,11 @@ Tokens are estimated as characters / 4. Example: `TOOL_LOG_PRUNE=1 TOOL_LOG_HEAD
 
 | Agent | Mechanism | File |
 |---|---|---|
-| Claude Code | `PostToolUse` hook, `hookSpecificOutput.updatedToolOutput` | `claude_hook.py` |
-| Codex | `PostToolUse` hook, `{"continue": false, "reason": …}` | `codex_hook.py` |
-| OpenCode | plugin `tool.execute.after`, mutates `output.output` / `content[i].text` | `opencode_plugin.ts` |
+| Claude Code | plugin with a `PostToolUse` hook, reply `hookSpecificOutput.updatedToolOutput` | `hooks/hooks.json`, `hooks/prune.py` |
+| Codex | `PostToolUse` hook, reply `{"continue": false, "reason": …}` | same `hooks/prune.py` (Codex events carry `turn_id`) |
+| OpenCode | plugin `tool.execute.after`, mutates `output.output` / `content[i].text` | `opencode/prune-tool-output.ts` |
 
-All logic is in `toollog.py`. The two Python hooks import it; the OpenCode plugin runs inside Bun and calls it as a subprocess (`toollog.py prune-text`).
+All logic is in `hooks/toollog.py`. The hook script imports it; the OpenCode plugin runs inside Bun and calls it as a subprocess (`toollog.py prune-text`).
 
 ### Claude Code
 
@@ -76,18 +76,27 @@ For MCP tools OpenCode rebuilds the text from `result.content[]`, so the plugin 
 
 ## Install
 
+Claude Code only, as a plugin:
+
+```
+claude plugin marketplace add m2cci-bouzentm/tool-log-prune
+claude plugin install tool-log-prune@tool-log-prune --scope user
+```
+
+All three agents:
+
 ```
 git clone https://github.com/m2cci-bouzentm/tool-log-prune && cd tool-log-prune && python3 install.py
 ```
 
-The installer registers the hooks pointing at the clone (no copies, `git pull` updates all three), trusts the Codex hook and symlinks the OpenCode plugin. It is idempotent. Then:
+The installer runs the two plugin commands above for Claude Code, registers and trusts the Codex hook in `~/.codex/hooks.json` pointing at the clone, and symlinks the OpenCode plugin into `~/.config/opencode/plugins/`. It is idempotent. Then:
 
 ```
 TOOL_LOG_PRUNE=1 claude               # Claude Code with pruning
 TOOL_LOG_PRUNE=1 codex -m gpt-5.5     # Codex with pruning, direct-mode model
 TOOL_LOG_PRUNE=1 opencode             # OpenCode with pruning
 claude                                # plain, unchanged
-python3 toollog.py recall <id> --chunk 2/5
+python3 hooks/toollog.py recall <id> --chunk 2/5
 ```
 
 The binaries reject unknown flags, so the switch is the environment variable, set inline for one process. The hooks are registered permanently but do nothing without it.
@@ -153,11 +162,13 @@ Read is where the hook pays. Bash is mostly handled by the harness already. Edit
 ## Files
 
 ```
-toollog.py           shared module + CLI (prune, archive, recall)
-claude_hook.py       Claude Code PostToolUse hook
-codex_hook.py        Codex PostToolUse hook
-opencode_plugin.ts   OpenCode plugin
-install.py           registers, trusts, symlinks
+.claude-plugin/plugin.json        Claude Code plugin manifest
+.claude-plugin/marketplace.json   self-hosted marketplace (this repo is the only entry)
+hooks/hooks.json                  PostToolUse hook definition, ${CLAUDE_PLUGIN_ROOT}/hooks/prune.py
+hooks/prune.py                    the hook, Claude Code and Codex
+hooks/toollog.py                  shared module + CLI (prune, archive, recall)
+opencode/prune-tool-output.ts     OpenCode plugin
+install.py                        installs for all three agents
 ```
 
 ## Related

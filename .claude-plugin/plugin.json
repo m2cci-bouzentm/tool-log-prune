@@ -1,0 +1,12 @@
+{
+  "name": "tool-log-prune",
+  "version": "1.0.0",
+  "description": "Keep large tool results out of context: archive them by call id, show the model only head + tail plus how to recall the rest. Opt-in with TOOL_LOG_PRUNE=1.",
+  "author": {
+    "name": "Mohamed Bouzentouta"
+  },
+  "homepage": "https://github.com/m2cci-bouzentm/tool-log-prune",
+  "repository": "https://github.com/m2cci-bouzentm/tool-log-prune",
+  "license": "MIT",
+  "keywords": ["hooks", "context", "tokens", "pruning"]
+}

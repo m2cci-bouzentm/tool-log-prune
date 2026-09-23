@@ -1,0 +1,13 @@
+{
+  "name": "tool-log-prune",
+  "owner": {
+    "name": "Mohamed Bouzentouta"
+  },
+  "plugins": [
+    {
+      "name": "tool-log-prune",
+      "source": "./",
+      "description": "Keep large tool results out of context: archive them by call id, show the model only head + tail plus how to recall the rest. Opt-in with TOOL_LOG_PRUNE=1."
+    }
+  ]
+}

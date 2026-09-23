@@ -1,5 +1,5 @@
-// OpenCode plugin: prune large tool results via the shared toollog.py (one implementation for all agents).
-// Symlinked into ~/.config/opencode/plugins/ by install.sh; resolves toollog.py next to its real path.
+// OpenCode plugin: prune large tool results via the shared hooks/toollog.py (one implementation for all agents).
+// Symlinked into ~/.config/opencode/plugins/ by install.py; resolves toollog.py relative to its real path.
 //
 // Built-in tools: mutating output.output replaces what the model sees.
 // MCP tools: OpenCode rebuilds the text from result.content[], so content[i].text is mutated instead.
@@ -7,7 +7,7 @@ import type { Plugin } from "@opencode-ai/plugin"
 import { realpathSync } from "node:fs"
 import { dirname, join } from "node:path"
 
-const TOOLLOG_PATH = join(dirname(realpathSync(import.meta.path)), "toollog.py")
+const TOOLLOG_PATH = join(dirname(realpathSync(import.meta.path)), "..", "hooks", "toollog.py")
 
 /** Returns the pruned text, or null when the result is below threshold, pruning is disabled, or the helper failed. */
 function pruneText(fullText: string, callID: string, sessionID: string, toolName: string): string | null {

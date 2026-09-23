@@ -1,0 +1,16 @@
+{
+  "description": "Archive large tool results by call id; the model sees head + tail plus a recall pointer. Active only with TOOL_LOG_PRUNE=1.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/prune.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
