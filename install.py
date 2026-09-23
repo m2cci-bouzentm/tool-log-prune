@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Install tool-log-prune for Claude Code, Codex and OpenCode.
+"""Install tool-log-prune for Claude Code, Codex, OpenCode and Hermes Agent.
 
 Claude Code: installed as a plugin from this repo's marketplace (`claude plugin ...`), the
 same way any published plugin is. Codex and OpenCode have no equivalent that works without a
 manual trust step, so they are registered to point at this clone. Nothing is active until an
 agent is started with TOOL_LOG_PRUNE=1 in its environment, e.g. `TOOL_LOG_PRUNE=1 claude`.
+Hermes is the exception: the plugin is symlinked into ~/.hermes and every profile under
+~/.hermes/profiles and enabled there, so it is active for every profile and provider as soon
+as it is loaded. Re-run this installer after creating a new Hermes profile.
 """
 import hashlib
 import json
@@ -122,9 +125,44 @@ def install_recall_command():
     print(f"  recall: {shim_path}" + ("" if on_path else "  (add ~/.local/bin to PATH)"))
 
 
+def hermes_homes():
+    """~/.hermes plus every profile directory that has its own config.yaml."""
+    base = f"{HOME}/.hermes"
+    if not os.path.isdir(base):
+        return []
+    profiles_dir = f"{base}/profiles"
+    profile_homes = sorted(
+        f"{profiles_dir}/{name}" for name in (os.listdir(profiles_dir) if os.path.isdir(profiles_dir) else [])
+        if os.path.exists(f"{profiles_dir}/{name}/config.yaml"))
+    return [base] + profile_homes
+
+
+def install_hermes():
+    """Symlink the plugin into every Hermes home and enable it there with Hermes' own CLI."""
+    homes = hermes_homes()
+    if not homes:
+        print("  Hermes: ~/.hermes not found, skipped")
+        return
+    hermes_binary = shutil.which("hermes")
+    for home in homes:
+        plugin_link = f"{home}/plugins/tool-log-prune"
+        os.makedirs(os.path.dirname(plugin_link), exist_ok=True)
+        if os.path.lexists(plugin_link):
+            os.remove(plugin_link)
+        os.symlink(f"{REPO_DIR}/hermes/tool-log-prune", plugin_link)
+        if hermes_binary:
+            enable = subprocess.run([hermes_binary, "plugins", "enable", "tool-log-prune"], capture_output=True, text=True,
+                                    env={**os.environ, "HERMES_HOME": home})
+            outcome = (enable.stdout + enable.stderr).strip().splitlines()
+            print(f"  Hermes {home}: plugin symlinked,", outcome[-1] if outcome else "enabled")
+        else:
+            print(f"  Hermes {home}: plugin symlinked; run: HERMES_HOME={home} hermes plugins enable tool-log-prune")
+
+
 if __name__ == "__main__":
     install_claude()
     install_codex()
     install_opencode()
+    install_hermes()
     install_recall_command()
-    print("done. Start with: TOOL_LOG_PRUNE=1 claude | TOOL_LOG_PRUNE=1 codex -m gpt-5.5 | TOOL_LOG_PRUNE=1 opencode")
+    print("done. Start with: TOOL_LOG_PRUNE=1 claude | TOOL_LOG_PRUNE=1 codex -m gpt-5.5 | TOOL_LOG_PRUNE=1 opencode | hermes (always on)")
