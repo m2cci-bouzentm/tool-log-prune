@@ -12,7 +12,9 @@ The problem is the prompt cache. An agent session is one long prefix that the pr
 
 So the idea behind this hook: prune before the result ever enters the context, and save the full text somewhere in case it is still needed. The model sees the head and the tail, enough to know whether the call worked and what the end state is, plus a pointer. The rest sits in an archive keyed by the tool call id and comes back on demand, in chunks. The prefix stays append-only, the cache keeps hitting, and nothing is lost.
 
-No classifier, no LLM call, no summary. Deterministic head + tail, off by default, on with one environment variable.
+What pushed me to build it was Jev, TypeSafe's System One model: a model that returns typed decisions with probabilities instead of text, in a few hundred milliseconds, for a fraction of a cent. My first plan was to put it in the loop: ask it whether the tool call succeeded, and which chunks of the result were worth keeping. It works, and per call it is cheap. But an agent session makes hundreds of tool calls, and someone running Claude Code or Codex all day makes thousands. A classifier on every result adds a network round trip and a cost line to each of them, and that adds up fast for exactly the people who need pruning most.
+
+So I dropped the classifier. Head and tail, cut at a fixed size, and a pointer to the rest. Deterministic, no model in the loop, off by default, on with one environment variable. Jev may come back later as an optional layer that picks better chunks; the archive and the recall path do not depend on it.
 
 ## How it works
 
