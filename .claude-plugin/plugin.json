@@ -1,6 +1,6 @@
 {
   "name": "tool-log-prune",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Keep large tool results out of context: archive them by call id, show the model only head + tail plus how to recall the rest. Opt-in with TOOL_LOG_PRUNE=1.",
   "author": {
     "name": "Mohamed Bouzentouta"

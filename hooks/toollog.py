@@ -170,8 +170,18 @@ def fetch(tool_use_id):
 
 # ---------------------------------------------------------------- pruning
 
+RECALL_MARKER = "[tool-log "  # first line of every recall output; recall is never pruned again
+
+
+def prune_limit_chars():
+    return (HEAD_TOKENS + TAIL_TOKENS) * CHARS_PER_TOKEN
+
+
 def needs_pruning(full_text):
-    return len(full_text) > (HEAD_TOKENS + TAIL_TOKENS) * CHARS_PER_TOKEN
+    """Longer than head + tail, and not the output of a recall (the agent asked for that text on purpose)."""
+    if full_text.lstrip().startswith(RECALL_MARKER):
+        return False
+    return len(full_text) > prune_limit_chars()
 
 
 def recall_command(tool_use_id):
@@ -184,12 +194,14 @@ def recall_command(tool_use_id):
 def footer(tool_use_id, size_chars):
     estimated_tokens = size_chars // CHARS_PER_TOKEN
     command = recall_command(tool_use_id)
+    chunks_under_limit = -(-size_chars // prune_limit_chars())  # ceil: N so that one chunk fits in head + tail
     return (
         f"\n\n[tool-log: output truncated. {size_chars:,} chars (~{estimated_tokens:,} tokens) archived under id {tool_use_id};"
         f" shown above: first {HEAD_TOKENS} and last {TAIL_TOKENS} tokens. The middle is NOT lost. Retrieve it with:"
-        f"\n  {command} --chunk K/N      chunk K of the full text split into N equal parts (e.g. --chunk 3/10)"
+        f"\n  {command} --chunk K/N      chunk K of the full text split into N equal parts (e.g. --chunk 1/{chunks_under_limit}, each chunk about {HEAD_TOKENS + TAIL_TOKENS} tokens)"
         f"\n  {command} --chunk A-B/N    chunks A through B of N (e.g. --chunk 1-3/10)"
-        f"\n  {command}                  everything]"
+        f"\n  {command}                  everything"
+        f"\nRecall output is never pruned.]"
     )
 
 
@@ -259,7 +271,7 @@ def _command_recall(arguments):
         print(f"no archived result for id {tool_use_id}", file=sys.stderr)
         return 1
     if options[:1] != ["--chunk"]:
-        sys.stdout.write(full_text)
+        sys.stdout.write(f"[tool-log {tool_use_id}: full text, {len(full_text):,} chars]\n{full_text}\n")
         return 0
     try:
         selected_text, first_chunk, last_chunk, chunk_count, start_char, end_char = chunk_text(full_text, options[1])

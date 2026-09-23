@@ -32,12 +32,15 @@ The footer the model sees:
  shown above: first 500 and last 500 tokens. The middle is NOT lost. Retrieve it with:
   recall toolu_01AB… --chunk K/N      chunk K of the full text split into N equal parts
   recall toolu_01AB… --chunk A-B/N    chunks A through B of N
-  recall toolu_01AB…                  everything]
+  recall toolu_01AB…                  everything
+Recall output is never pruned.]
 ```
 
 `recall` is a two-line shim in `~/.local/bin` written by the installer. Without it (plugin-only install) the footer prints the full `python3 …/hooks/toollog.py recall` path instead.
 
 So the agent reads the third tenth of a 100k log without paying for the rest, or pipes the full text into `grep` itself.
+
+Recall output starts with a `[tool-log <id>: …]` line and the hook never prunes text that starts with it, so a chunk larger than head + tail comes back whole instead of being archived again. The footer's `K/N` example is the N at which one chunk fits under the limit.
 
 Archive: `~/.claude/tool-logs/tool_log.sqlite`, one table `results(id, session_id, ts, tool_name, tool_input, size_chars, output)`, shared by all three agents.
 
