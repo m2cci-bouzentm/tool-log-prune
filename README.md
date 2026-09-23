@@ -14,7 +14,7 @@ So the idea behind this hook: prune before the result ever enters the context, a
 
 What pushed me to build it was Jev, TypeSafe's System One model: a model that returns typed decisions with probabilities instead of text, in a few hundred milliseconds, for a fraction of a cent. My first plan was to put it in the loop: ask it whether the tool call succeeded, and which chunks of the result were worth keeping. It works, and per call it is cheap. But with the number of tool calls agents make, for someone using Claude Code or Codex heavily it amounts to something quickly: at $0.0004 a call, 3,000 calls a day is $36 a month, plus 3,000 extra round trips.
 
-So I dropped the classifier. Head and tail, cut at a fixed size, and a pointer to the rest. Deterministic, no model in the loop, off by default, on with one environment variable. Jev may come back later as an optional layer that picks better chunks; the archive and the recall path do not depend on it.
+So I dropped the classifier. Head and tail, cut at a fixed size, and a pointer to the rest. Deterministic, no model in the loop, off by default, on with one environment variable. A classifier in the loop is still the ideal. If an open source, free alternative to Jev shows up that runs locally, that is what belongs there; the archive and the recall path do not depend on it.
 
 ## How it works
 
