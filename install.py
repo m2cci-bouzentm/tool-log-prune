@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
-"""Install tool-log-prune for Claude Code, Codex, OpenCode and Hermes Agent.
+"""Install tool-log-prune for Claude Code, OpenCode and Hermes Agent.
 
 Claude Code: installed as a plugin from this repo's marketplace (`claude plugin ...`), the
-same way any published plugin is. Codex and OpenCode have no equivalent that works without a
-manual trust step, so they are registered to point at this clone. Nothing is active until an
+same way any published plugin is. OpenCode is registered to point at this clone. Nothing is active until an
 agent is started with TOOL_LOG_PRUNE=1 in its environment, e.g. `TOOL_LOG_PRUNE=1 claude`.
 Hermes is the exception: the plugin is symlinked into ~/.hermes and every profile under
 ~/.hermes/profiles and enabled there, so it is active for every profile and provider as soon
 as it is loaded. Re-run this installer after creating a new Hermes profile.
 """
-import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 
@@ -56,42 +53,6 @@ def install_claude():
         install = subprocess.run(["claude", "plugin", "update", PLUGIN], capture_output=True, text=True)
     outcome = (install.stdout + install.stderr).strip().splitlines()
     print("  Claude Code:", outcome[-1] if outcome else f"plugin {PLUGIN} installed")
-
-
-def register_codex_post_tool_use(hooks_path, handler):
-    """Replace any earlier registration of ours with `handler`; return its group index."""
-    config = load_json(hooks_path, {"hooks": {}})
-    groups = config.setdefault("hooks", {}).setdefault("PostToolUse", [])
-    groups[:] = [group for group in groups if not is_our_hook_group(group)]
-    groups.append({"hooks": [handler]})
-    save_json(hooks_path, config)
-    return len(groups) - 1
-
-
-def trust_codex_hook(hooks_path, handler, group_index):
-    """Write the trust entry the TUI /hooks review would write, so `codex exec` runs the hook."""
-    hook_identity = {"event_name": "post_tool_use", "hooks": [{**handler, "async": False}]}
-    canonical_json = json.dumps(hook_identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    trusted_hash = "sha256:" + hashlib.sha256(canonical_json.encode()).hexdigest()
-    state_key = f"{hooks_path}:post_tool_use:{group_index}:0"
-    config_path = f"{HOME}/.codex/config.toml"
-    config_text = open(config_path).read() if os.path.exists(config_path) else ""
-    stale_block = r'\n\[hooks\.state\."' + re.escape(state_key) + r'"\]\n(?:[^\[\n]*\n)*'
-    config_text = re.sub(stale_block, "\n", config_text).rstrip("\n")
-    config_text += f'\n\n[hooks.state."{state_key}"]\nenabled = true\ntrusted_hash = "{trusted_hash}"\n'
-    with open(config_path, "w") as config_file:
-        config_file.write(config_text)
-
-
-def install_codex():
-    if not os.path.isdir(f"{HOME}/.codex"):
-        print("  Codex: ~/.codex not found, skipped")
-        return
-    hooks_path = f"{HOME}/.codex/hooks.json"
-    handler = {"type": "command", "command": f"python3 {REPO_DIR}/hooks/prune.py", "timeout": 10, "statusMessage": "Pruning tool output"}
-    group_index = register_codex_post_tool_use(hooks_path, handler)
-    trust_codex_hook(hooks_path, handler, group_index)
-    print("  Codex: PostToolUse hook ->", handler["command"], "(trusted)")
 
 
 def install_opencode():
@@ -161,8 +122,7 @@ def install_hermes():
 
 if __name__ == "__main__":
     install_claude()
-    install_codex()
     install_opencode()
     install_hermes()
     install_recall_command()
-    print("done. Start with: TOOL_LOG_PRUNE=1 claude | TOOL_LOG_PRUNE=1 codex -m gpt-5.5 | TOOL_LOG_PRUNE=1 opencode | hermes (always on)")
+    print("done. Start with: TOOL_LOG_PRUNE=1 claude | TOOL_LOG_PRUNE=1 opencode | hermes (always on)")

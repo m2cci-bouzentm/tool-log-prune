@@ -4,7 +4,7 @@
 Archive large tool results in full (SQLite, keyed by tool call id) and hand the
 model only the head and tail plus a footer that says how to fetch the rest.
 
-Imported by claude_hook.py and codex_hook.py. Called as a subprocess by
+Imported by the Claude Code hook. Called as a subprocess by
 opencode_plugin.ts. Also the recall CLI the agent invokes:
 
   recall <id>                 full archived text        (recall = python3 toollog.py recall, installed by install.py)
@@ -55,7 +55,7 @@ def log_error(source, error):
 # ---------------------------------------------------------------- text payload in / out
 #
 # Known tool_response shapes:
-#   plain string                      Codex shell
+#   plain string                      plain-text tool output
 #   {"stdout", "stderr", ...}         Claude Code Bash
 #   {"type": "text", "text"}          generic
 #   {"file": {"content", ...}}        Claude Code Read
@@ -214,7 +214,7 @@ def prune(full_text, tool_use_id, session_id, tool_name, tool_input):
 
 
 def prune_hook_event(hook_event, agent_name):
-    """Shared hook flow for Claude Code and Codex.
+    """Shared hook flow for Claude Code.
 
     Returns (tool_response, pruned_text), or None when nothing should change:
     pruning disabled, or the result fits within head + tail.

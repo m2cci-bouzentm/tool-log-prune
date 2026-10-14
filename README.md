@@ -2,7 +2,7 @@
 
 Keep large tool results out of the model context. Archive them in full, keyed by tool call id, and show the model only the first and last 500 tokens plus a footer that says exactly how to fetch the rest.
 
-Works for Claude Code, Codex, OpenCode and Hermes Agent from one shared implementation. Off by default for the three CLIs. Active only when the agent is started with `TOOL_LOG_PRUNE=1` in its environment: `TOOL_LOG_PRUNE=1 claude`. Hermes is the exception: there the plugin is on for every profile and provider once installed, see below.
+Works for Claude Code, OpenCode and Hermes Agent from one shared implementation. Off by default for Claude Code and OpenCode. Active only when the agent is started with `TOOL_LOG_PRUNE=1` in its environment: `TOOL_LOG_PRUNE=1 claude`. Hermes is the exception: there the plugin is on for every profile and provider once installed, see below.
 
 ## The idea
 
@@ -62,7 +62,6 @@ Tokens are estimated as characters / 4. Example: `TOOL_LOG_PRUNE=1 TOOL_LOG_HEAD
 | Agent | Mechanism | File |
 |---|---|---|
 | Claude Code | plugin with a `PostToolUse` hook, reply `hookSpecificOutput.updatedToolOutput` | `hooks/hooks.json`, `hooks/prune.py` |
-| Codex | `PostToolUse` hook, reply `{"continue": false, "reason": …}` | same `hooks/prune.py` (Codex events carry `turn_id`) |
 | OpenCode | plugin `tool.execute.after`, mutates `output.output` / `content[i].text` | `opencode/prune-tool-output.ts` |
 | Hermes Agent | plugin hook `transform_tool_result`, returns the replacement result string | `hermes/tool-log-prune/` |
 
@@ -72,11 +71,20 @@ All logic is in `hooks/toollog.py`. The hook script and the Hermes plugin import
 
 `updatedToolOutput` must have the same shape as the original `tool_response`, otherwise Claude Code logs "does not match output shape; using original output". Bash returns `{stdout, stderr, …}`, Read returns `{file: {content, …}}`, MCP tools return `[{type: "text", text}]`. `toollog.rebuild` puts the pruned text back inside a copy of the original structure. Needs Claude Code ≥ 2.1.198.
 
-### Codex
+### Removed Codex integration
 
-Codex only runs hooks it trusts. The installer writes the trust entry to `~/.codex/config.toml` the same way the TUI `/hooks` review does (sha256 of the canonical hook identity). Changing the hook command, timeout or statusMessage changes the hash; re-run the installer.
+Codex is no longer supported. The previous `continue: false` / `reason`
+implementation can stop current Codex runs instead of replacing their tool
+output. Archiving without pruning does not save context tokens, so there is no
+archive-only fallback. Earlier GPT-5.5/direct-tool compatibility claims are
+withdrawn from the supported configuration.
 
-Caveat: Codex applies PostToolUse feedback only on the function-tool path. Models catalogued as `code_mode_only` (gpt-6-astra and most current ones) run tools through code mode, where the hook fires and archives but the replacement is discarded by design. Direct-mode models (gpt-5.5) work: `TOOL_LOG_PRUNE=1 codex -m gpt-5.5`.
+When upgrading, remove only this plugin's command from `PostToolUse` in
+`~/.codex/hooks.json` (the command points to `tool-log-prune/hooks/prune.py`).
+Keep unrelated hooks. Restart Codex to reload the configuration. The updated
+script also ignores legacy Codex events before writing an archive, so an old
+registration pointing at the updated checkout will not stop or archive results.
+The installer no longer registers or trusts a Codex hook.
 
 ### OpenCode
 
@@ -99,17 +107,16 @@ claude plugin marketplace add m2cci-bouzentm/tool-log-prune
 claude plugin install tool-log-prune@tool-log-prune --scope user
 ```
 
-All four agents:
+All supported agents:
 
 ```
 git clone https://github.com/m2cci-bouzentm/tool-log-prune && cd tool-log-prune && python3 install.py
 ```
 
-The installer runs the two plugin commands above for Claude Code, registers and trusts the Codex hook in `~/.codex/hooks.json` pointing at the clone, symlinks the OpenCode plugin into `~/.config/opencode/plugins/`, symlinks and enables the Hermes plugin in `~/.hermes` and every profile, and puts `recall` in `~/.local/bin`. It is idempotent. Then:
+The installer runs the two plugin commands above for Claude Code, symlinks the OpenCode plugin into `~/.config/opencode/plugins/`, symlinks and enables the Hermes plugin in `~/.hermes` and every profile, and puts `recall` in `~/.local/bin`. It is idempotent. Then:
 
 ```
 TOOL_LOG_PRUNE=1 claude               # Claude Code with pruning
-TOOL_LOG_PRUNE=1 codex -m gpt-5.5     # Codex with pruning, direct-mode model
 TOOL_LOG_PRUNE=1 opencode             # OpenCode with pruning
 hermes gateway restart                # Hermes: plugin enabled per profile, always on
 claude                                # plain, unchanged
@@ -127,7 +134,6 @@ Every row was run against the real agent binary, no mocks, and checked from the 
 | Claude Code 2.1.280 | Bash 12,000 chars | 8,699 chars + footer, archived | 12,000 chars, nothing archived |
 | Claude Code 2.1.280 | Read 25,096 chars | 9,031 chars + footer, archived | 25,096 chars, nothing archived |
 | Claude Code 2.1.280 | MCP snapshot 42,830 chars | 8,997 chars + footer, archived | 42,830 chars, nothing archived |
-| Codex 0.154.0, gpt-5.5 | shell 12,000 chars | footer present, archived | untouched, nothing archived |
 | OpenCode 1.18.30 | bash 12,000 chars | 4,000-char runs + footer, archived | 12,000 chars, nothing archived |
 
 ## Measured token reduction
@@ -182,7 +188,7 @@ Read is where the hook pays. Bash is mostly handled by the harness already. Edit
 .claude-plugin/plugin.json        Claude Code plugin manifest
 .claude-plugin/marketplace.json   self-hosted marketplace (this repo is the only entry)
 hooks/hooks.json                  PostToolUse hook definition, ${CLAUDE_PLUGIN_ROOT}/hooks/prune.py
-hooks/prune.py                    the hook, Claude Code and Codex
+hooks/prune.py                    the hook, Claude Code
 hooks/toollog.py                  shared module + CLI (prune, archive, recall)
 opencode/prune-tool-output.ts     OpenCode plugin
 hermes/tool-log-prune/            Hermes Agent plugin (plugin.yaml + __init__.py)
